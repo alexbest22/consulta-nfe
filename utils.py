@@ -1,8 +1,9 @@
 import logging
+import re
 import time
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -61,6 +62,29 @@ def carregar_credenciais(
     return str(usuario).strip(), str(senha).strip()
 
 
+def carregar_lista_credenciais(
+    xlsx_path: Path,
+    sheet_name: Optional[str],
+    row_start: int,
+    col_user: int,
+    col_password: int,
+) -> List[Tuple[str, str]]:
+    logging.info("STEP 1 - Lendo todas as credenciais em %s", xlsx_path)
+    workbook = load_workbook(xlsx_path, data_only=True, read_only=True)
+    worksheet = workbook[sheet_name] if sheet_name else workbook.active
+    credenciais: List[Tuple[str, str]] = []
+    linha = row_start
+    while True:
+        usuario = worksheet.cell(row=linha, column=col_user).value
+        senha = worksheet.cell(row=linha, column=col_password).value
+        if usuario and senha:
+            credenciais.append((str(usuario).strip(), str(senha).strip()))
+        else:
+            break
+        linha += 1
+    return credenciais
+
+
 def periodo_mes_anterior(base: Optional[date] = None) -> Tuple[str, str]:
     hoje = base or date.today()
     primeiro_deste_mes = hoje.replace(day=1)
@@ -73,21 +97,49 @@ def periodo_mes_anterior(base: Optional[date] = None) -> Tuple[str, str]:
     return inicio, fim
 
 
-def pressionar_enter_certificado(headless: bool) -> None:
+MESES_PT = [
+    "janeiro",
+    "fevereiro",
+    "marco",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+]
+
+
+def periodo_mes_anterior_info(base: Optional[date] = None) -> Tuple[str, str, int, str]:
+    hoje = base or date.today()
+    primeiro_deste_mes = hoje.replace(day=1)
+    ultimo_mes = primeiro_deste_mes - timedelta(days=1)
+    primeiro = ultimo_mes.replace(day=1)
+    inicio = primeiro.strftime("%d/%m/%Y")
+    fim = ultimo_mes.strftime("%d/%m/%Y")
+    ano = ultimo_mes.year
+    mes_extenso = MESES_PT[ultimo_mes.month - 1]
+    return inicio, fim, ano, mes_extenso
+
+
+def pressionar_enter(headless: bool, delay: float = 0.0, contexto: str = "") -> None:
     if headless:
-        logging.info("STEP 6 - Modo headless ativo; pulando envio automatico de ENTER.")
+        logging.info("STEP - Modo headless ativo; pulando envio de ENTER (%s).", contexto)
         return
     if pyautogui is None:
-        logging.info("STEP 6 - pyautogui nao instalado; pulando envio automatico de ENTER.")
+        logging.info("STEP - pyautogui nao instalado; pulando envio de ENTER (%s).", contexto)
         return
 
-    logging.info("STEP 6 - Aguardando 3 segundos e pressionando ENTER para fechar o certificado.")
-    time.sleep(3)
+    if delay > 0:
+        time.sleep(delay)
     try:
         pyautogui.press("enter")
-        logging.debug("STEP 6 - ENTER enviado via pyautogui.")
+        logging.debug("STEP - ENTER enviado via pyautogui (%s).", contexto)
     except Exception as exc:
-        logging.warning("STEP 6 - Falha ao enviar ENTER via pyautogui: %s", exc)
+        logging.warning("STEP - Falha ao enviar ENTER (%s): %s", contexto, exc)
 
 
 def detectar_captcha(driver: Chrome) -> bool:
@@ -154,6 +206,67 @@ def extrair_texto_captcha_from_bytes(image_bytes: bytes) -> str:
         config="--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
     )
     return "".join(ch for ch in texto.upper() if ch.isalnum())
+
+
+def aguardar_download_conclusao(
+    diretorio: Path, timeout: int = 180, estabilidade: int = 2
+) -> Path:
+    logging.info("STEP - Aguardando conclusao do download na pasta %s.", diretorio)
+    fim = time.time() + timeout
+    diretorio.mkdir(parents=True, exist_ok=True)
+    ultimo_arquivo: Optional[Path] = None
+    ultimo_tamanho: Optional[int] = None
+    tempo_estavel = time.time()
+
+    while time.time() < fim:
+        cr = list(diretorio.glob("*.crdownload"))
+        arquivos = [p for p in diretorio.iterdir() if p.is_file()]
+
+        if arquivos:
+            candidato = max(arquivos, key=lambda p: p.stat().st_mtime)
+            tamanho = candidato.stat().st_size
+
+            if cr:
+                ultimo_arquivo = None
+                ultimo_tamanho = None
+                tempo_estavel = time.time()
+            else:
+                if candidato != ultimo_arquivo:
+                    ultimo_arquivo = candidato
+                    ultimo_tamanho = tamanho
+                    tempo_estavel = time.time()
+                elif tamanho != ultimo_tamanho:
+                    ultimo_tamanho = tamanho
+                    tempo_estavel = time.time()
+                elif time.time() - tempo_estavel >= estabilidade:
+                    logging.info("STEP - Download concluido: %s", candidato.name)
+                    return candidato
+
+        time.sleep(1)
+
+    raise TimeoutError("Download nao concluido dentro do tempo limite.")
+
+
+def normalizar_nome_pasta(texto: str, fallback: str) -> str:
+    if not texto:
+        texto = fallback
+    texto = texto.strip()
+    texto = re.sub(r"[^0-9A-Za-zÀ-ÿ\s_-]", "", texto)
+    texto = re.sub(r"\s+", "_", texto)
+    return texto[:80] if texto else fallback
+
+
+def ajustar_extensao_planilha(arquivo: Path, extensao_desejada: str = ".xls") -> Path:
+    if arquivo.suffix.lower() == ".tmp":
+        novo_arquivo = arquivo.with_suffix(extensao_desejada)
+        logging.info(
+            "STEP - Renomeando arquivo temporario %s para %s",
+            arquivo.name,
+            novo_arquivo.name,
+        )
+        arquivo.rename(novo_arquivo)
+        return novo_arquivo
+    return arquivo
 
 
 def aguardar_pagina_carregada(driver: Chrome, timeout: int) -> None:

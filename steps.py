@@ -1,7 +1,11 @@
+import logging
 from pathlib import Path
+from typing import Optional
 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.common.exceptions import TimeoutException
 
 from browser import Browser
 from selectors_module import DEFAULT_SELECTORS, LOGIN_URL
@@ -11,7 +15,7 @@ from utils import (
     resolver_captcha_ocr,
     pausar,
     preencher_campo,
-    pressionar_enter_certificado,
+    pressionar_enter,
 )
 
 
@@ -25,6 +29,7 @@ class ConsultaNFeSteps:
         diretorio_captcha: Path,
         aguardar_captcha: bool,
         usar_ocr: bool,
+        headless: bool,
         pausa: float = DEFAULT_PAUSE_SECONDS,
     ) -> None:
         self.browser = browser
@@ -32,6 +37,8 @@ class ConsultaNFeSteps:
         self.diretorio_captcha = diretorio_captcha
         self.aguardar_captcha = aguardar_captcha
         self.usar_ocr = usar_ocr
+        self.headless = headless
+        self._razao_social: Optional[str] = None
 
     def acessar_login(self, timeout: int) -> None:
         self.browser.navigate(LOGIN_URL)
@@ -67,7 +74,7 @@ class ConsultaNFeSteps:
         pausar(self.pausa)
 
         botao_login.click()
-        pressionar_enter_certificado(headless)
+        pressionar_enter(headless, delay=3.0, contexto="certificado")
         pausar(self.pausa)
 
     def definir_periodo(self, periodo_inicio: str, periodo_fim: str) -> None:
@@ -102,17 +109,73 @@ class ConsultaNFeSteps:
         preencher_campo(self.browser.driver, campo_periodo_fim, periodo_fim)
         pausar(self.pausa)
 
-        if self.usar_ocr:
-            sucesso = resolver_captcha_ocr(self.browser.driver)
-            if not sucesso:
-                lidar_com_captcha(
-                    self.browser.driver,
-                    self.diretorio_captcha,
-                    self.aguardar_captcha,
-                )
-        else:
-            lidar_com_captcha(
-                self.browser.driver,
-                self.diretorio_captcha,
-                self.aguardar_captcha,
+        self._resolver_captcha()
+
+    def obter_razao_social(self) -> str:
+        if self._razao_social:
+            return self._razao_social
+        elemento = self.browser.wait_for(
+            DEFAULT_SELECTORS.razao_social,
+            "label de razao social",
+        )
+        self._razao_social = elemento.text.strip()
+        logging.info("STEP - Razao social identificada: %s", self._razao_social)
+        return self._razao_social
+
+    def enviar_consulta(self) -> None:
+        tentativas = 0
+        while True:
+            botao_consultar = self.browser.wait_for(
+                DEFAULT_SELECTORS.consultar_button,
+                "botao 'Consultar'",
+                condition=EC.element_to_be_clickable,
             )
+            pausar(self.pausa)
+            botao_consultar.click()
+            pausar(self.pausa)
+            if self._tratar_alerta_captcha():
+                tentativas += 1
+                logging.warning("STEP - CAPTCHA invalido. Tentativa %s.", tentativas)
+                self._resolver_captcha()
+                continue
+            break
+        self._aguardar_resultados()
+
+    def _resolver_captcha(self) -> None:
+        if self.usar_ocr and resolver_captcha_ocr(self.browser.driver):
+            return
+        lidar_com_captcha(
+            self.browser.driver,
+            self.diretorio_captcha,
+            self.aguardar_captcha,
+        )
+
+    def _tratar_alerta_captcha(self) -> bool:
+        try:
+            alert = WebDriverWait(self.browser.driver, 2).until(EC.alert_is_present())
+        except TimeoutException:
+            return False
+
+        mensagem = alert.text
+        logging.warning("STEP - Alerta apos consulta: %s", mensagem)
+        alert.accept()
+        pressionar_enter(self.headless, delay=3.0, contexto="alerta captcha")
+        return True
+
+    def _aguardar_resultados(self) -> None:
+        try:
+            gerar_planilha = self.browser.wait_for(
+                [
+                    (By.ID, "btn_GeraPlanilha"),
+                    (By.ID, "btn_GerarPlanilha"),
+                    (By.CSS_SELECTOR, "input#btn_GerarPlanilha"),
+                    (By.XPATH, "//input[@value='Gerar Planilha']"),
+                ],
+                "botao 'Gerar Planilha'",
+                condition=EC.element_to_be_clickable,
+            )
+            pausar(self.pausa)
+            gerar_planilha.click()
+            logging.info("STEP - Botao 'Gerar Planilha' acionado.")
+        except TimeoutException:
+            logging.warning("STEP - Botao 'Gerar Planilha' nao foi localizado apos a consulta.")

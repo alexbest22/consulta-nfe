@@ -20,6 +20,7 @@ class Selectors:
     consultar_button: List[Tuple[str, str]]
     captcha_image: List[Tuple[str, str]]
     captcha_input: List[Tuple[str, str]]
+    razao_social: List[Tuple[str, str]]
 
 
 DEFAULT_SELECTORS = Selectors(
@@ -100,5 +101,9 @@ DEFAULT_SELECTORS = Selectors(
     captcha_input=[
         (By.ID, "txt_cod_antirobo"),
         (By.CSS_SELECTOR, "input#txt_cod_antirobo"),
+    ],
+    razao_social=[
+        (By.ID, "lblRazaoSocial_Emitente"),
+        (By.CSS_SELECTOR, "#lblRazaoSocial_Emitente"),
     ],
 )

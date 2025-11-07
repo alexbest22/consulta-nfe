@@ -1,6 +1,7 @@
 import logging
 import time
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Iterable, List, Tuple
 
 from selenium import webdriver
@@ -16,7 +17,7 @@ from config import ELEMENT_WAIT_SECONDS
 
 
 @contextmanager
-def criar_driver(headless: bool, manter_aberto: bool) -> Iterable[Chrome]:
+def criar_driver(headless: bool, manter_aberto: bool, download_dir: Path | None = None) -> Iterable[Chrome]:
     logging.info("STEP 3 - Inicializando Chrome (headless=%s).", headless)
     options = ChromeOptions()
     options.add_argument("--disable-gpu")
@@ -29,6 +30,15 @@ def criar_driver(headless: bool, manter_aberto: bool) -> Iterable[Chrome]:
     options.set_capability("acceptInsecureCerts", True)
     if headless:
         options.add_argument("--headless=new")
+
+    prefs = {
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+        "safebrowsing.enabled": True,
+    }
+    if download_dir:
+        prefs["download.default_directory"] = str(download_dir.resolve())
+    options.add_experimental_option("prefs", prefs)
 
     driver_path = ChromeDriverManager().install()
     service = ChromeService(driver_path)
