@@ -18,6 +18,8 @@ class Selectors:
     period_start: List[Tuple[str, str]]
     period_end: List[Tuple[str, str]]
     consultar_button: List[Tuple[str, str]]
+    captcha_image: List[Tuple[str, str]]
+    captcha_input: List[Tuple[str, str]]
 
 
 DEFAULT_SELECTORS = Selectors(
@@ -90,5 +92,13 @@ DEFAULT_SELECTORS = Selectors(
                 "contains(translate(@value, 'consultar', 'CONSULTAR'), 'CONSULTAR')]"
             ),
         ),
+    ],
+    captcha_image=[
+        (By.ID, "img_captcha"),
+        (By.CSS_SELECTOR, "img#img_captcha"),
+    ],
+    captcha_input=[
+        (By.ID, "txt_cod_antirobo"),
+        (By.CSS_SELECTOR, "input#txt_cod_antirobo"),
     ],
 )

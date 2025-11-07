@@ -4,7 +4,14 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Optional, Tuple
 
+import cv2
+import numpy as np
 from openpyxl import load_workbook
+from PIL import Image
+from pytesseract import pytesseract
+
+pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+import pytesseract
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver import Chrome
 from selenium.webdriver.common.by import By
@@ -93,21 +100,60 @@ def detectar_captcha(driver: Chrome) -> bool:
     return len(captcha_elements) > 0
 
 
+def resolver_captcha_ocr(driver: Chrome) -> bool:
+    from selectors_module import DEFAULT_SELECTORS
+
+    logging.info("STEP - Tentando resolver CAPTCHA por OCR.")
+    try:
+        imagem_elemento = driver.find_element(*DEFAULT_SELECTORS.captcha_image[0])
+        campo_entrada = driver.find_element(*DEFAULT_SELECTORS.captcha_input[0])
+    except Exception:
+        logging.info("STEP - Elementos de CAPTCHA nao encontrados para OCR.")
+        return False
+
+    imagem_b64 = imagem_elemento.screenshot_as_png
+    texto = extrair_texto_captcha_from_bytes(imagem_b64)
+    if texto:
+        logging.info("STEP - OCR retornou '%s'.", texto)
+        preencher_campo(driver, campo_entrada, texto)
+        return True
+
+    logging.warning("STEP - OCR nao conseguiu decodificar o CAPTCHA.")
+    return False
+
+
 def lidar_com_captcha(driver: Chrome, destino: Path, aguardar_usuario: bool) -> None:
     logging.info("STEP - Verificando presenca de CAPTCHA.")
     if not detectar_captcha(driver):
         return
 
-    destino.mkdir(parents=True, exist_ok=True)
-    screenshot_path = destino / f"captcha_{date.today().isoformat()}.png"
-    driver.save_screenshot(str(screenshot_path))
     logging.warning(
-        "CAPTCHA detectado. Screenshot salva em %s. "
-        "Sera necessario resolver manualmente.",
-        screenshot_path,
+        "STEP - CAPTCHA detectado. Informe manualmente caso o OCR nao esteja ativado."
     )
     if aguardar_usuario:
-        input("Resolva o CAPTCHA no navegador aberto e pressione Enter para continuar...")
+        input("Digite o CAPTCHA no navegador e pressione Enter para continuar...")
+
+
+def extrair_texto_captcha_from_bytes(image_bytes: bytes) -> str:
+    np_array = np.frombuffer(image_bytes, np.uint8)
+    imagem = cv2.imdecode(np_array, cv2.IMREAD_GRAYSCALE)
+    if imagem is None:
+        return ""
+
+    blur = cv2.medianBlur(imagem, 3)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = np.ones((2, 2), np.uint8)
+    close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+    dilate = cv2.dilate(close, kernel, iterations=1)
+    erode = cv2.erode(dilate, kernel, iterations=1)
+    ampliada = cv2.resize(erode, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+
+    pil_image = Image.fromarray(ampliada)
+    texto = pytesseract.image_to_string(
+        pil_image,
+        config="--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    )
+    return "".join(ch for ch in texto.upper() if ch.isalnum())
 
 
 def aguardar_pagina_carregada(driver: Chrome, timeout: int) -> None:

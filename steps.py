@@ -8,6 +8,7 @@ from selectors_module import DEFAULT_SELECTORS, LOGIN_URL
 from utils import (
     aguardar_pagina_carregada,
     lidar_com_captcha,
+    resolver_captcha_ocr,
     pausar,
     preencher_campo,
     pressionar_enter_certificado,
@@ -23,12 +24,14 @@ class ConsultaNFeSteps:
         browser: Browser,
         diretorio_captcha: Path,
         aguardar_captcha: bool,
+        usar_ocr: bool,
         pausa: float = DEFAULT_PAUSE_SECONDS,
     ) -> None:
         self.browser = browser
         self.pausa = pausa
         self.diretorio_captcha = diretorio_captcha
         self.aguardar_captcha = aguardar_captcha
+        self.usar_ocr = usar_ocr
 
     def acessar_login(self, timeout: int) -> None:
         self.browser.navigate(LOGIN_URL)
@@ -99,8 +102,17 @@ class ConsultaNFeSteps:
         preencher_campo(self.browser.driver, campo_periodo_fim, periodo_fim)
         pausar(self.pausa)
 
-        lidar_com_captcha(
-            self.browser.driver,
-            self.diretorio_captcha,
-            self.aguardar_captcha,
-        )
+        if self.usar_ocr:
+            sucesso = resolver_captcha_ocr(self.browser.driver)
+            if not sucesso:
+                lidar_com_captcha(
+                    self.browser.driver,
+                    self.diretorio_captcha,
+                    self.aguardar_captcha,
+                )
+        else:
+            lidar_com_captcha(
+                self.browser.driver,
+                self.diretorio_captcha,
+                self.aguardar_captcha,
+            )

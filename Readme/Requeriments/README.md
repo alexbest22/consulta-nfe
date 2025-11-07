@@ -7,6 +7,7 @@ Este projeto inclui um script em Python que automatiza o login no portal da SEFA
 - Google Chrome instalado
 - Python 3.10 ou superior (para o script em Python)
 - Node.js 18+ (para a versao em TypeScript)
+- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) instalado e acessível no PATH (necessário para o OCR do CAPTCHA).
 
 Instale as bibliotecas necessarias para cada opcao:
 
@@ -53,6 +54,7 @@ Parametros uteis (ambos os scripts):
 - `--diretorio-captcha`: pasta onde screenshots de CAPTCHA serao salvos.
 - `--sequencia-captcha`: pausa a execucao para que o usuario resolva o CAPTCHA manualmente.
 - `--fechar-navegador`: fecha o navegador automaticamente ao final (por padrão ele permanece aberto até você confirmar).
+- `--ocr-captcha`: tenta ler o CAPTCHA automaticamente (requer Tesseract instalado; falhas voltam para o modo manual).
 
 ## Ajustando seletores
 

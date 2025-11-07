@@ -67,6 +67,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--ocr-captcha",
+        action="store_true",
+        help="Ativa tentativa automatica de leitura do CAPTCHA via OCR (requer Tesseract instalado).",
+    )
+    parser.add_argument(
         "--fechar-navegador",
         action="store_true",
         help="Fecha o navegador automaticamente ao final (padrao: manter aberto ate confirmacao).",
@@ -94,6 +99,7 @@ def main() -> None:
             browser=browser,
             diretorio_captcha=Path(args.diretorio_captcha),
             aguardar_captcha=args.sequencia_captcha,
+            usar_ocr=args.ocr_captcha,
         )
 
         steps.acessar_login(args.espera)
