@@ -3,9 +3,14 @@ from typing import List, Tuple
 
 from selenium.webdriver.common.by import By
 
-LOGIN_URL = (
+LOGIN_URL_EMITENTE = (
     "https://nfe.sefaz.ba.gov.br/servicos/NFENC/SSL/ASLibrary/Login?"
     "ReturnUrl=%2fservicos%2fnfenc%2fModulos%2fAutenticado%2fRestrito%2fNFENC_consulta_emitente.aspx"
+)
+
+LOGIN_URL_DESTINATARIO = (
+    "https://nfe.sefaz.ba.gov.br/servicos/NFENC/SSL/ASLibrary/Login?"
+    "ReturnUrl=%2fservicos%2fnfenc%2fModulos%2fAutenticado%2fRestrito%2fNFENC_consulta_destinatario.aspx"
 )
 
 
@@ -105,5 +110,7 @@ DEFAULT_SELECTORS = Selectors(
     razao_social=[
         (By.ID, "lblRazaoSocial_Emitente"),
         (By.CSS_SELECTOR, "#lblRazaoSocial_Emitente"),
+        (By.ID, "lblRazaoSocial_Destinatario"),
+        (By.CSS_SELECTOR, "#lblRazaoSocial_Destinatario"),
     ],
 )

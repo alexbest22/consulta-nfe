@@ -68,17 +68,25 @@ def carregar_lista_credenciais(
     row_start: int,
     col_user: int,
     col_password: int,
-) -> List[Tuple[str, str]]:
+    col_codigo: int,
+) -> List[Tuple[str, str, str]]:
     logging.info("STEP 1 - Lendo todas as credenciais em %s", xlsx_path)
     workbook = load_workbook(xlsx_path, data_only=True, read_only=True)
     worksheet = workbook[sheet_name] if sheet_name else workbook.active
-    credenciais: List[Tuple[str, str]] = []
+    credenciais: List[Tuple[str, str, str]] = []
     linha = row_start
     while True:
+        codigo = worksheet.cell(row=linha, column=col_codigo).value
         usuario = worksheet.cell(row=linha, column=col_user).value
         senha = worksheet.cell(row=linha, column=col_password).value
-        if usuario and senha:
-            credenciais.append((str(usuario).strip(), str(senha).strip()))
+        if codigo and usuario and senha:
+            credenciais.append(
+                (
+                    str(codigo).strip(),
+                    str(usuario).strip(),
+                    str(senha).strip(),
+                )
+            )
         else:
             break
         linha += 1
@@ -205,7 +213,8 @@ def extrair_texto_captcha_from_bytes(image_bytes: bytes) -> str:
         pil_image,
         config="--psm 8 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
     )
-    return "".join(ch for ch in texto.upper() if ch.isalnum())
+    formatado = "".join(ch for ch in texto.upper() if ch.isalnum())
+    return formatado[:4]
 
 
 def aguardar_download_conclusao(

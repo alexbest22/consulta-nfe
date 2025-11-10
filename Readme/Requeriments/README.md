@@ -17,11 +17,6 @@ Este projeto automatiza o login no portal da SEFAZ Bahia, preenche o periodo de 
   ```
   (Inclui `pyautogui`, `pywinauto`, `pytesseract`, OpenCV e Pillow.)
 
-- TypeScript:
-  ```bash
-  npm install
-  ```
-
 ## Estrutura da planilha
 
 Arquivo padrão: `usuario-senha-nfe.xlsx` (raiz do projeto).
@@ -44,7 +39,7 @@ Use `--ocr-captcha` para ativar a tentativa automatica de leitura do CAPTCHA. Se
 ### Principais opcoes
 
 - `--headless`: executa o Chrome sem interface grafica.
-- `--linha`, `--coluna-usuario`, `--coluna-senha`, `--aba`: personalizam o mapeamento da planilha.
+- `--linha`, `--coluna-usuario`, `--coluna-senha`, `--coluna-codigo`, `--aba`: personalizam o mapeamento da planilha.
 - `--espera`: tempo maximo de espera (segundos) para elementos (padrao `20`).
 - `--diretorio-captcha`: pasta usada para arquivos auxiliares do CAPTCHA (padrao `captchas`).
 - `--downloads-temporarios`: pasta temporaria para downloads antes de mover (padrao `.downloads_temp`).
@@ -67,7 +62,6 @@ Use `--ocr-captcha` para ativar a tentativa automatica de leitura do CAPTCHA. Se
 ## Ajustando seletores
 
 - Python: edite `selectors_module.py`.
-- TypeScript: ajuste o objeto `SELECTORS` em `src/steps.ts`.
 
 ## Observacoes
 

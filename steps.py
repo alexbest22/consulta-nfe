@@ -8,7 +8,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 
 from browser import Browser
-from selectors_module import DEFAULT_SELECTORS, LOGIN_URL
+from selectors_module import DEFAULT_SELECTORS
 from utils import (
     aguardar_pagina_carregada,
     lidar_com_captcha,
@@ -30,6 +30,8 @@ class ConsultaNFeSteps:
         aguardar_captcha: bool,
         usar_ocr: bool,
         headless: bool,
+        login_url: str,
+        subpasta: str,
         pausa: float = DEFAULT_PAUSE_SECONDS,
     ) -> None:
         self.browser = browser
@@ -38,10 +40,12 @@ class ConsultaNFeSteps:
         self.aguardar_captcha = aguardar_captcha
         self.usar_ocr = usar_ocr
         self.headless = headless
+        self.login_url = login_url
+        self.subpasta = subpasta
         self._razao_social: Optional[str] = None
 
     def acessar_login(self, timeout: int) -> None:
-        self.browser.navigate(LOGIN_URL)
+        self.browser.navigate(self.login_url)
         aguardar_pagina_carregada(self.browser.driver, timeout)
         self.browser.wait_for(
             [

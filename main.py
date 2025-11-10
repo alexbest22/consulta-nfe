@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 from browser import Browser, criar_driver
+from selectors_module import LOGIN_URL_DESTINATARIO, LOGIN_URL_EMITENTE
 from steps import ConsultaNFeSteps
 from utils import (
     ajustar_extensao_planilha,
@@ -34,14 +35,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--coluna-usuario",
         type=int,
-        default=3,
-        help="Numero da coluna (1-index) para o usuario. Padrao: 3.",
+        default=4,
+        help="Numero da coluna (1-index) para o usuario. Padrao: 4 (coluna D).",
     )
     parser.add_argument(
         "--coluna-senha",
         type=int,
-        default=4,
-        help="Numero da coluna (1-index) para a senha. Padrao: 4.",
+        default=5,
+        help="Numero da coluna (1-index) para a senha. Padrao: 5 (coluna E).",
+    )
+    parser.add_argument(
+        "--coluna-codigo",
+        type=int,
+        default=1,
+        help="Numero da coluna (1-index) para o codigo dominio. Padrao: 1.",
     )
     parser.add_argument(
         "--aba",
@@ -105,6 +112,7 @@ def main() -> None:
         args.linha,
         args.coluna_usuario,
         args.coluna_senha,
+        args.coluna_codigo,
     )
     if not credenciais:
         raise SystemExit("Nenhuma credencial encontrada na planilha.")
@@ -114,42 +122,54 @@ def main() -> None:
     base_downloads = Path(args.downloads_temporarios).expanduser().resolve()
     diretorio_captcha = Path(args.diretorio_captcha).expanduser().resolve()
 
+    contextos = [
+        ("emitente", LOGIN_URL_EMITENTE, "saidas"),
+        ("destinatario", LOGIN_URL_DESTINATARIO, "entradas"),
+    ]
+
     total = len(credenciais)
-    for indice, (usuario, senha) in enumerate(credenciais, start=1):
+    for indice, (codigo_dominio, usuario, senha) in enumerate(credenciais, start=1):
         logging.info("===== Processando credencial %s/%s =====", indice, total)
-        temp_dir = base_downloads / f"exec_{indice}_{int(time.time())}"
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        for nome_contexto, login_url, subpasta in contextos:
+            logging.info("--- Contexto: %s ---", nome_contexto.title())
+            temp_dir = base_downloads / f"{nome_contexto}_{indice}_{int(time.time())}"
+            temp_dir.mkdir(parents=True, exist_ok=True)
 
-        with criar_driver(args.headless, args.manter_navegador, temp_dir) as driver:
-            browser = Browser(driver)
-            steps = ConsultaNFeSteps(
-                browser=browser,
-                diretorio_captcha=diretorio_captcha,
-                aguardar_captcha=args.sequencia_captcha,
-                usar_ocr=args.ocr_captcha,
-                headless=args.headless,
+            with criar_driver(args.headless, args.manter_navegador, temp_dir) as driver:
+                browser = Browser(driver)
+                steps = ConsultaNFeSteps(
+                    browser=browser,
+                    diretorio_captcha=diretorio_captcha,
+                    aguardar_captcha=args.sequencia_captcha,
+                    usar_ocr=args.ocr_captcha,
+                    headless=args.headless,
+                    login_url=login_url,
+                    subpasta=subpasta,
+                )
+
+                steps.acessar_login(args.espera)
+                steps.autenticar(usuario, senha, args.headless)
+                razao_social = steps.obter_razao_social()
+                steps.definir_periodo(periodo_inicio, periodo_fim)
+                steps.enviar_consulta()
+
+                arquivo_download = aguardar_download_conclusao(temp_dir)
+                arquivo_download = ajustar_extensao_planilha(arquivo_download)
+
+            destino_final = (
+                base_saida
+                / str(ano_referencia)
+                / mes_extenso
+                / str(codigo_dominio)
+                / subpasta
             )
-
-            steps.acessar_login(args.espera)
-            steps.autenticar(usuario, senha, args.headless)
-            razao_social = steps.obter_razao_social()
-            steps.definir_periodo(periodo_inicio, periodo_fim)
-            steps.enviar_consulta()
-
-            arquivo_download = aguardar_download_conclusao(temp_dir)
-            arquivo_download = ajustar_extensao_planilha(arquivo_download)
-
-        destino_final = (
-            base_saida
-            / str(ano_referencia)
-            / mes_extenso
-            / normalizar_nome_pasta(razao_social, f"empresa_{indice}")
-        )
-        destino_final.mkdir(parents=True, exist_ok=True)
-        destino_arquivo = destino_final / arquivo_download.name
-        shutil.move(str(arquivo_download), destino_arquivo)
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        logging.info("Arquivo movido para %s", destino_arquivo)
+            destino_final.mkdir(parents=True, exist_ok=True)
+            destino_arquivo = destino_final / arquivo_download.name
+            shutil.move(str(arquivo_download), destino_arquivo)
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            logging.info(
+                "Arquivo do contexto %s movido para %s", nome_contexto, destino_arquivo
+            )
 
     input("Processamento concluido. Pressione Enter para encerrar...")
 
